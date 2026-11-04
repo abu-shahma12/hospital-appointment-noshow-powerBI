@@ -1,0 +1,92 @@
+// ============================================================
+// Hospital Appointment No-Show and Scheduling Analysis (Power BI)
+// DAX measures and calculated columns
+//
+// Tables: appointments (75,000 rows), doctors (320 rows)
+// Relationship: appointments[doctor_id] (many) -> doctors[doctor_id] (one)
+// ============================================================
+
+
+// ------------------------------------------------------------
+// MEASURES (created on the appointments table)
+// ------------------------------------------------------------
+
+// Count of all appointment records
+Total Appointments =
+COUNTROWS(appointments)
+
+// Appointments that were attended
+Completed Appointments =
+CALCULATE(
+    COUNTROWS(appointments),
+    appointments[appointment_status] = "Completed"
+)
+
+// Appointments where the patient did not show up
+No-Show Appointments =
+CALCULATE(
+    COUNTROWS(appointments),
+    appointments[appointment_status] = "No-Show"
+)
+
+// Appointments with a known outcome (completed, no-show or cancelled).
+// "Scheduled" appointments are excluded because their outcome is not known yet.
+Finalised Appointments =
+CALCULATE(
+    COUNTROWS(appointments),
+    appointments[appointment_status] <> "Scheduled"
+)
+
+// No-shows as a share of finalised appointments
+No-Show Rate =
+DIVIDE([No-Show Appointments], [Finalised Appointments])
+
+// Completed appointments as a share of finalised appointments
+Completion Rate =
+DIVIDE([Completed Appointments], [Finalised Appointments])
+
+// Net revenue realized from completed appointments
+Revenue Realized =
+SUM(appointments[revenue_realized])
+
+// Listed consultation fees of no-show appointments (not actual lost income)
+Revenue at Risk =
+CALCULATE(
+    SUM(appointments[consultation_fee]),
+    appointments[appointment_status] = "No-Show"
+)
+
+// Average wait in minutes (only completed appointments have a wait time)
+Avg Wait Time (min) =
+AVERAGE(appointments[wait_time_minutes])
+
+
+// ------------------------------------------------------------
+// CALCULATED COLUMNS (created on the appointments table)
+// ------------------------------------------------------------
+
+// Groups appointments by how many days before the visit they were booked
+Lead Time Bucket =
+SWITCH(
+    TRUE(),
+    appointments[booking_lead_days] = 0, "0 - Same day",
+    appointments[booking_lead_days] <= 3, "1-3 days",
+    appointments[booking_lead_days] <= 7, "4-7 days",
+    appointments[booking_lead_days] <= 14, "8-14 days",
+    "15-30 days"
+)
+
+// Sort order for Lead Time Bucket (set via Column tools > Sort by column)
+Lead Time Order =
+SWITCH(
+    TRUE(),
+    appointments[booking_lead_days] = 0, 1,
+    appointments[booking_lead_days] <= 3, 2,
+    appointments[booking_lead_days] <= 7, 3,
+    appointments[booking_lead_days] <= 14, 4,
+    5
+)
+
+// Monday = 1 ... Sunday = 7, used to sort appointment_day in weekday order
+Day Order =
+WEEKDAY(appointments[appointment_date], 2)
